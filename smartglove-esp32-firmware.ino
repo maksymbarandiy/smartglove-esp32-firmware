@@ -1,8 +1,11 @@
 #include <Wire.h>
+#include "BluetoothSerial.h"
 
-const uint8_t MPU1_ADDR = 0x68;  // на Wire (піни 21,22)
-const uint8_t MPU2_ADDR = 0x69;  // на Wire (піни 21,22)
-const uint8_t MPU3_ADDR = 0x68;  // на Wire1 (піни 18,19)
+BluetoothSerial SerialBT;
+
+const uint8_t MPU1_ADDR = 0x68;
+const uint8_t MPU2_ADDR = 0x69;
+const uint8_t MPU3_ADDR = 0x68;
 
 bool readMPU6050(TwoWire &bus, uint8_t addr, int16_t &ax, int16_t &ay, int16_t &az,
                  int16_t &gx, int16_t &gy, int16_t &gz) {
@@ -32,15 +35,17 @@ void initMPU6050(TwoWire &bus, uint8_t addr) {
 
 void setup() {
   Serial.begin(115200);
+  SerialBT.begin("SmartGlove");
   
-  Wire.begin(21, 22);      // перша I2C шина
-  Wire1.begin(18, 19);     // друга I2C шина
+  Wire.begin(21, 22);
+  Wire1.begin(18, 19);
   
   initMPU6050(Wire, MPU1_ADDR);
   initMPU6050(Wire, MPU2_ADDR);
   initMPU6050(Wire1, MPU3_ADDR);
   
-  Serial.println("Three MPU6050 initialized (Wire + Wire1)");
+  SerialBT.println("SmartGlove ready");
+  Serial.println("Three MPU6050 initialized");
 }
 
 void loop() {
@@ -52,14 +57,13 @@ void loop() {
   bool ok2 = readMPU6050(Wire, MPU2_ADDR, ax2, ay2, az2, gx2, gy2, gz2);
   bool ok3 = readMPU6050(Wire1, MPU3_ADDR, ax3, ay3, az3, gx3, gy3, gz3);
 
-  if (ok1) {
-    Serial.print("MPU1: ax="); Serial.print(ax1); Serial.print(" ay="); Serial.print(ay1); Serial.print(" az="); Serial.println(az1);
-  }
-  if (ok2) {
-    Serial.print("MPU2: ax="); Serial.print(ax2); Serial.print(" ay="); Serial.print(ay2); Serial.print(" az="); Serial.println(az2);
-  }
-  if (ok3) {
-    Serial.print("MPU3: ax="); Serial.print(ax3); Serial.print(" ay="); Serial.print(ay3); Serial.print(" az="); Serial.println(az3);
+  if (ok1 && ok2 && ok3) {
+    SerialBT.print(ax1); SerialBT.print(","); SerialBT.print(ay1); SerialBT.print(","); SerialBT.print(az1); SerialBT.print(",");
+    SerialBT.print(gx1); SerialBT.print(","); SerialBT.print(gy1); SerialBT.print(","); SerialBT.print(gz1); SerialBT.print(",");
+    SerialBT.print(ax2); SerialBT.print(","); SerialBT.print(ay2); SerialBT.print(","); SerialBT.print(az2); SerialBT.print(",");
+    SerialBT.print(gx2); SerialBT.print(","); SerialBT.print(gy2); SerialBT.print(","); SerialBT.print(gz2); SerialBT.print(",");
+    SerialBT.print(ax3); SerialBT.print(","); SerialBT.print(ay3); SerialBT.print(","); SerialBT.print(az3); SerialBT.print(",");
+    SerialBT.print(gx3); SerialBT.print(","); SerialBT.print(gy3); SerialBT.print(","); SerialBT.println(gz3);
   }
 
   delay(100);
