@@ -7,6 +7,10 @@ const uint8_t MPU1_ADDR = 0x68;
 const uint8_t MPU2_ADDR = 0x69;
 const uint8_t MPU3_ADDR = 0x68;
 
+const int TOTAL_AXES = 18;
+const int WINDOW_SIZE = 1000;
+int16_t dataBuffer[1000][18];
+int bufferIndex = 0;
 bool recording = false;
 
 bool readMPU6050(TwoWire &bus, uint8_t addr, int16_t &ax, int16_t &ay, int16_t &az,
@@ -35,6 +39,15 @@ void initMPU6050(TwoWire &bus, uint8_t addr) {
   delay(10);
 }
 
+void addToBuffer(int16_t *data) {
+  if (bufferIndex < WINDOW_SIZE) {
+    for (int i = 0; i < TOTAL_AXES; i++) {
+      dataBuffer[bufferIndex][i] = data[i];
+    }
+    bufferIndex++;
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   SerialBT.begin("SmartGlove");
@@ -47,7 +60,7 @@ void setup() {
   initMPU6050(Wire1, MPU3_ADDR);
   
   SerialBT.println("SmartGlove ready. Send START or STOP");
-  Serial.println("Three MPU6050 initialized");
+  Serial.println("Buffer ready: 1000 frames x 18 axes");
 }
 
 void loop() {
@@ -55,15 +68,18 @@ void loop() {
     String cmd = SerialBT.readStringUntil('\n');
     cmd.trim();
     if (cmd == "START") {
+      bufferIndex = 0;
       recording = true;
       SerialBT.println("Recording started");
     } else if (cmd == "STOP") {
       recording = false;
-      SerialBT.println("Recording stopped");
+      SerialBT.print("Recording stopped. ");
+      SerialBT.print(bufferIndex);
+      SerialBT.println(" frames captured");
     }
   }
 
-  if (recording) {
+  if (recording && bufferIndex < WINDOW_SIZE) {
     int16_t ax1, ay1, az1, gx1, gy1, gz1;
     int16_t ax2, ay2, az2, gx2, gy2, gz2;
     int16_t ax3, ay3, az3, gx3, gy3, gz3;
@@ -73,14 +89,12 @@ void loop() {
     bool ok3 = readMPU6050(Wire1, MPU3_ADDR, ax3, ay3, az3, gx3, gy3, gz3);
 
     if (ok1 && ok2 && ok3) {
-      SerialBT.print(ax1); SerialBT.print(","); SerialBT.print(ay1); SerialBT.print(","); SerialBT.print(az1); SerialBT.print(",");
-      SerialBT.print(gx1); SerialBT.print(","); SerialBT.print(gy1); SerialBT.print(","); SerialBT.print(gz1); SerialBT.print(",");
-      SerialBT.print(ax2); SerialBT.print(","); SerialBT.print(ay2); SerialBT.print(","); SerialBT.print(az2); SerialBT.print(",");
-      SerialBT.print(gx2); SerialBT.print(","); SerialBT.print(gy2); SerialBT.print(","); SerialBT.print(gz2); SerialBT.print(",");
-      SerialBT.print(ax3); SerialBT.print(","); SerialBT.print(ay3); SerialBT.print(","); SerialBT.print(az3); SerialBT.print(",");
-      SerialBT.print(gx3); SerialBT.print(","); SerialBT.print(gy3); SerialBT.print(","); SerialBT.println(gz3);
+      int16_t frame[18] = {ax1, ay1, az1, gx1, gy1, gz1,
+                           ax2, ay2, az2, gx2, gy2, gz2,
+                           ax3, ay3, az3, gx3, gy3, gz3};
+      addToBuffer(frame);
     }
   }
   
-  delay(100);
+  delay(10);
 }
