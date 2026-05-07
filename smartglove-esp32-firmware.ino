@@ -11,7 +11,9 @@ const int TOTAL_AXES = 18;
 const int WINDOW_SIZE = 1000;
 int16_t dataBuffer[1000][18];
 int bufferIndex = 0;
-bool recording = false;
+
+enum State { IDLE, RECORDING, SENDING };
+State currentState = IDLE;
 
 bool readMPU6050(TwoWire &bus, uint8_t addr, int16_t &ax, int16_t &ay, int16_t &az,
                  int16_t &gx, int16_t &gy, int16_t &gz) {
@@ -48,6 +50,17 @@ void addToBuffer(int16_t *data) {
   }
 }
 
+void sendBufferedData() {
+  for (int i = 0; i < bufferIndex; i++) {
+    for (int j = 0; j < TOTAL_AXES; j++) {
+      SerialBT.print(dataBuffer[i][j]);
+      if (j < TOTAL_AXES - 1) SerialBT.print(",");
+    }
+    SerialBT.println();
+  }
+  SerialBT.println("END");
+}
+
 void setup() {
   Serial.begin(115200);
   SerialBT.begin("SmartGlove");
@@ -59,27 +72,37 @@ void setup() {
   initMPU6050(Wire, MPU2_ADDR);
   initMPU6050(Wire1, MPU3_ADDR);
   
-  SerialBT.println("SmartGlove ready. Send START or STOP");
-  Serial.println("Buffer ready: 1000 frames x 18 axes");
+  SerialBT.println("SmartGlove ready. Commands: START, STOP, SEND");
+  Serial.println("State machine: IDLE/RECORDING/SENDING");
 }
 
 void loop() {
   if (SerialBT.available()) {
     String cmd = SerialBT.readStringUntil('\n');
     cmd.trim();
-    if (cmd == "START") {
+    
+    if (cmd == "START" && currentState == IDLE) {
       bufferIndex = 0;
-      recording = true;
-      SerialBT.println("Recording started");
-    } else if (cmd == "STOP") {
-      recording = false;
+      currentState = RECORDING;
+      SerialBT.println("RECORDING started");
+    } 
+    else if (cmd == "STOP" && currentState == RECORDING) {
+      currentState = IDLE;
       SerialBT.print("Recording stopped. ");
       SerialBT.print(bufferIndex);
       SerialBT.println(" frames captured");
     }
+    else if (cmd == "SEND" && currentState == IDLE && bufferIndex > 0) {
+      currentState = SENDING;
+      SerialBT.println("SENDING data...");
+      sendBufferedData();
+      currentState = IDLE;
+      SerialBT.println("Data sent. Buffer cleared");
+      bufferIndex = 0;
+    }
   }
 
-  if (recording && bufferIndex < WINDOW_SIZE) {
+  if (currentState == RECORDING && bufferIndex < WINDOW_SIZE) {
     int16_t ax1, ay1, az1, gx1, gy1, gz1;
     int16_t ax2, ay2, az2, gx2, gy2, gz2;
     int16_t ax3, ay3, az3, gx3, gy3, gz3;
