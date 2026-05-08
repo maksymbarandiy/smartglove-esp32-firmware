@@ -61,6 +61,27 @@ void sendBufferedData() {
   SerialBT.println("END");
 }
 
+void readAllMPU(int16_t *frame) {
+  int16_t ax1, ay1, az1, gx1, gy1, gz1;
+  int16_t ax2, ay2, az2, gx2, gy2, gz2;
+  int16_t ax3, ay3, az3, gx3, gy3, gz3;
+  
+  bool ok1 = readMPU6050(Wire, MPU1_ADDR, ax1, ay1, az1, gx1, gy1, gz1);
+  bool ok2 = readMPU6050(Wire, MPU2_ADDR, ax2, ay2, az2, gx2, gy2, gz2);
+  bool ok3 = readMPU6050(Wire1, MPU3_ADDR, ax3, ay3, az3, gx3, gy3, gz3);
+  
+  if (!ok1) { ax1 = 0; ay1 = 0; az1 = 0; gx1 = 0; gy1 = 0; gz1 = 0; }
+  if (!ok2) { ax2 = 0; ay2 = 0; az2 = 0; gx2 = 0; gy2 = 0; gz2 = 0; }
+  if (!ok3) { ax3 = 0; ay3 = 0; az3 = 0; gx3 = 0; gy3 = 0; gz3 = 0; }
+  
+  frame[0] = ax1; frame[1] = ay1; frame[2] = az1;
+  frame[3] = gx1; frame[4] = gy1; frame[5] = gz1;
+  frame[6] = ax2; frame[7] = ay2; frame[8] = az2;
+  frame[9] = gx2; frame[10] = gy2; frame[11] = gz2;
+  frame[12] = ax3; frame[13] = ay3; frame[14] = az3;
+  frame[15] = gx3; frame[16] = gy3; frame[17] = gz3;
+}
+
 void setup() {
   Serial.begin(115200);
   SerialBT.begin("SmartGlove");
@@ -73,7 +94,7 @@ void setup() {
   initMPU6050(Wire1, MPU3_ADDR);
   
   SerialBT.println("SmartGlove ready. Commands: START, STOP, SEND");
-  Serial.println("State machine: IDLE/RECORDING/SENDING");
+  Serial.println("Error handling: zeros on read failure");
 }
 
 void loop() {
@@ -103,20 +124,9 @@ void loop() {
   }
 
   if (currentState == RECORDING && bufferIndex < WINDOW_SIZE) {
-    int16_t ax1, ay1, az1, gx1, gy1, gz1;
-    int16_t ax2, ay2, az2, gx2, gy2, gz2;
-    int16_t ax3, ay3, az3, gx3, gy3, gz3;
-
-    bool ok1 = readMPU6050(Wire, MPU1_ADDR, ax1, ay1, az1, gx1, gy1, gz1);
-    bool ok2 = readMPU6050(Wire, MPU2_ADDR, ax2, ay2, az2, gx2, gy2, gz2);
-    bool ok3 = readMPU6050(Wire1, MPU3_ADDR, ax3, ay3, az3, gx3, gy3, gz3);
-
-    if (ok1 && ok2 && ok3) {
-      int16_t frame[18] = {ax1, ay1, az1, gx1, gy1, gz1,
-                           ax2, ay2, az2, gx2, gy2, gz2,
-                           ax3, ay3, az3, gx3, gy3, gz3};
-      addToBuffer(frame);
-    }
+    int16_t frame[18];
+    readAllMPU(frame);
+    addToBuffer(frame);
   }
   
   delay(10);
