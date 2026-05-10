@@ -9,11 +9,18 @@ const uint8_t MPU3_ADDR = 0x68;
 
 const int TOTAL_AXES = 18;
 const int WINDOW_SIZE = 1000;
+const int SAMPLE_RATE_MS = 10;
+
 int16_t dataBuffer[1000][18];
 int bufferIndex = 0;
 
 enum State { IDLE, RECORDING, SENDING };
 State currentState = IDLE;
+
+void log(const String &msg, bool toSerial = true, bool toBT = true) {
+  if (toSerial) Serial.println(msg);
+  if (toBT) SerialBT.println(msg);
+}
 
 bool readMPU6050(TwoWire &bus, uint8_t addr, int16_t &ax, int16_t &ay, int16_t &az,
                  int16_t &gx, int16_t &gy, int16_t &gz) {
@@ -51,6 +58,7 @@ void addToBuffer(int16_t *data) {
 }
 
 void sendBufferedData() {
+  log("Sending " + String(bufferIndex) + " frames...", true, true);
   for (int i = 0; i < bufferIndex; i++) {
     for (int j = 0; j < TOTAL_AXES; j++) {
       SerialBT.print(dataBuffer[i][j]);
@@ -59,6 +67,7 @@ void sendBufferedData() {
     SerialBT.println();
   }
   SerialBT.println("END");
+  log("Data sent successfully", true, true);
 }
 
 void readAllMPU(int16_t *frame) {
@@ -93,8 +102,8 @@ void setup() {
   initMPU6050(Wire, MPU2_ADDR);
   initMPU6050(Wire1, MPU3_ADDR);
   
-  SerialBT.println("SmartGlove ready. Commands: START, STOP, SEND");
-  Serial.println("Error handling: zeros on read failure");
+  log("SmartGlove v1.0 ready", true, true);
+  log("Commands: START | STOP | SEND", true, true);
 }
 
 void loop() {
@@ -105,21 +114,20 @@ void loop() {
     if (cmd == "START" && currentState == IDLE) {
       bufferIndex = 0;
       currentState = RECORDING;
-      SerialBT.println("RECORDING started");
+      log("RECORDING started", true, true);
     } 
     else if (cmd == "STOP" && currentState == RECORDING) {
       currentState = IDLE;
-      SerialBT.print("Recording stopped. ");
-      SerialBT.print(bufferIndex);
-      SerialBT.println(" frames captured");
+      log("Recording stopped. " + String(bufferIndex) + " frames in buffer", true, true);
     }
     else if (cmd == "SEND" && currentState == IDLE && bufferIndex > 0) {
       currentState = SENDING;
-      SerialBT.println("SENDING data...");
       sendBufferedData();
       currentState = IDLE;
-      SerialBT.println("Data sent. Buffer cleared");
       bufferIndex = 0;
+    }
+    else if (cmd == "SEND" && bufferIndex == 0) {
+      log("Buffer empty. Record something first", true, true);
     }
   }
 
@@ -129,5 +137,5 @@ void loop() {
     addToBuffer(frame);
   }
   
-  delay(10);
+  delay(SAMPLE_RATE_MS);
 }
